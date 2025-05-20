@@ -3,43 +3,56 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
+import useSWRMutation from 'swr/mutation';
+
+async function loginFetcher(
+  url: string,
+  { arg }: { arg: { email: string; password: string } }
+) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(arg),
+  });
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const { trigger } = useSWRMutation(
+    `${process.env.NEXT_PUBLIC_API_URL}/login`,
+    loginFetcher
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (res.ok) {
-        toast.success('Login successful!');
-        router.push('/');
-      } else {
-        let data;
-        try {
-          data = await res.json();
-        } catch {
-          data = {};
-        }
-        if (data?.message === "Email doesn't exist") {
+      const data = await trigger({ email, password });
+      console.log('Login token:', data.token);
+      localStorage.setItem('token', data.token);
+      toast.success('Login successful!');
+      router.push('/');
+    } catch (error: unknown) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error &&
+        typeof (error as { message?: string }).message === 'string'
+      ) {
+        const message = (error as { message: string }).message;
+        if (message === "Email doesn't exist") {
           toast.error("Email doesn't exist. Please register first.");
-        } else if (data?.message === 'Password is incorrect') {
+        } else if (message === 'Password is incorrect') {
           toast.error('Password is incorrect. Please try again.');
         } else {
-          toast.error(data?.message || 'Login failed');
+          toast.error(message || 'Login failed');
         }
+      } else {
+        toast.error('Login failed');
       }
-    } catch (error) {
-      toast.error('Network error. Please try again.');
-      throw error;
     }
   }
 
