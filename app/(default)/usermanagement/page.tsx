@@ -1,10 +1,10 @@
 'use client';
 
+import { useAuth } from '@/app/components/AuthContext';
 import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import useSWR from 'swr';
 import Loading from '../../loading';
 
@@ -52,14 +52,10 @@ const deleteUser = async (userId: number, token: string) => {
 export default function UserManagement() {
   const [showModal, setShowModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
-  const router = useRouter();
-
-  const token =
-    typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const { token } = useAuth();
 
   const {
     data: users = [],
-    error,
     isLoading,
     mutate,
   } = useSWR(
@@ -83,14 +79,6 @@ export default function UserManagement() {
       }
     }
   };
-
-  useEffect(() => {
-    const status = error && (error as StatusError).status;
-    if (status === 401) {
-      localStorage.removeItem('token');
-      router.push('/login');
-    }
-  }, [error, router]);
 
   if (isLoading) return <Loading />;
 

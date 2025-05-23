@@ -1,7 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import Loading from '../loading';
+import { AuthContext } from './AuthContext';
 
 interface AuthWrapperProps {
   children: ReactNode;
@@ -9,15 +11,26 @@ interface AuthWrapperProps {
 
 const AuthWrapper = ({ children }: AuthWrapperProps) => {
   const router = useRouter();
+  const [checked, setChecked] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    const t = localStorage.getItem('token');
+    if (!t) {
       router.replace('/login');
+    } else {
+      setToken(t);
+      setChecked(true);
     }
   }, [router]);
 
-  return <>{children}</>;
+  if (!checked) {
+    return <Loading />;
+  }
+
+  return (
+    <AuthContext.Provider value={{ token }}>{children}</AuthContext.Provider>
+  );
 };
 
 export default AuthWrapper;
