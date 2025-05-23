@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import Loading from '../loading';
+import Loading from '../../loading';
 
 type User = {
   id: number;
@@ -50,32 +50,12 @@ const deleteUser = async (userId: number, token: string) => {
 };
 
 export default function UserManagement() {
-  const [token, setToken] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    const checkToken = () => {
-      const storedToken = localStorage.getItem('token');
-      if (!storedToken) {
-        router.replace('/login');
-      } else {
-        setToken(storedToken);
-      }
-    };
-
-    checkToken();
-
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'token') {
-        checkToken();
-      }
-    };
-    window.addEventListener('storage', onStorage);
-
-    return () => window.removeEventListener('storage', onStorage);
-  }, [router]);
+  const token =
+    typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const {
     data: users = [],
