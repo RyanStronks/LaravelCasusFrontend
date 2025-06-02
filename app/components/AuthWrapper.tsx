@@ -18,10 +18,27 @@ const AuthWrapper = ({ children }: AuthWrapperProps) => {
     const t = localStorage.getItem('token');
     if (!t) {
       router.replace('/login');
-    } else {
-      setToken(t);
-      setChecked(true);
+      return;
     }
+
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/verification`, {
+      headers: {
+        Authorization: `Bearer ${t}`,
+        Accept: 'application/json',
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Invalid token');
+        return res.json();
+      })
+      .then(() => {
+        setToken(t);
+        setChecked(true);
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+        router.replace('/login');
+      });
   }, [router]);
 
   if (!checked) {

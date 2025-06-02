@@ -24,10 +24,10 @@ export default function DefaultLayout({
             temp
           </Link>
           <Link
-            href='/#'
+            href='/gamemanagement'
             className='no-underline text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors'
           >
-            temp
+            Game Management
           </Link>
           <Link
             href='/usermanagement'
