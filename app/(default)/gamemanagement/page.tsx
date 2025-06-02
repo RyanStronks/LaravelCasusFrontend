@@ -1,8 +1,9 @@
 'use client';
 
-import { useAuth } from '@/app/components/AuthContext';
+import { useAuth } from '@/app/components/auth/AuthContext';
 import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 import useSWR from 'swr';
@@ -88,7 +89,7 @@ const uploadImage = async (file: File, token: string): Promise<string> => {
     throw new Error('Failed to upload image');
   }
   const data = await res.json();
-  return data.path; // Adjust if your API returns a different key
+  return data.path;
 };
 
 export default function GameManagement() {
@@ -187,10 +188,13 @@ export default function GameManagement() {
                 <span className='ml-2 text-zinc-400'>({game.description})</span>
                 {game.image_path && (
                   <div className='mt-2'>
-                    <img
+                    <Image
                       src={`${process.env.NEXT_PUBLIC_API_URL}/storage/${game.image_path}`}
                       alt={game.name}
-                      className='h-16 rounded'
+                      width={64}
+                      height={64}
+                      className='h-16 w-auto rounded object-cover'
+                      unoptimized
                     />
                   </div>
                 )}

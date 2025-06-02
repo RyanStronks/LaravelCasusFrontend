@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import AuthWrapper from '../components/AuthWrapper';
+import AuthWrapper from '../components/auth/AuthWrapper';
 
 export default function DefaultLayout({
   children,

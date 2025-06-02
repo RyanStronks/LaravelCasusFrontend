@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { ReactNode, useEffect, useState } from 'react';
-import Loading from '../loading';
+import Loading from '../../loading';
 import { AuthContext } from './AuthContext';
 
 interface AuthWrapperProps {

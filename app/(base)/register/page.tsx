@@ -1,5 +1,6 @@
 'use client';
 
+import { loginFetcher } from '@/app/services/loginAuth';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -10,11 +11,9 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
 
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/register`, {
       method: 'POST',
@@ -28,13 +27,24 @@ export default function RegisterPage() {
     });
 
     if (res.ok) {
-      toast.success('Registration successful! Please login.');
-      router.push('/login');
+      try {
+        const loginData = await loginFetcher(
+          `${process.env.NEXT_PUBLIC_API_URL}/login`,
+          { arg: { email, password } }
+        );
+        localStorage.setItem('token', loginData.token);
+        toast.success('Registration and login successful!');
+        router.push('/');
+      } catch {
+        toast.error(
+          'Registered, but failed to log in. Please try logging in manually.'
+        );
+        router.push('/login');
+      }
     } else {
       const data = await res.json();
       toast.error(data.message || 'Registration failed');
     }
-    setLoading(false);
   }
 
   return (
@@ -87,10 +97,9 @@ export default function RegisterPage() {
         </div>
         <button
           type='submit'
-          disabled={loading}
           className='mt-7 w-full bg-gradient-to-r from-green-500 to-green-700 text-white py-3 rounded-lg font-semibold shadow-md hover:from-green-600 hover:to-green-800 transition disabled:opacity-60'
         >
-          {loading ? 'Registering...' : 'Register'}
+          Register
         </button>
         <div className='mt-6 text-center'>
           <a
