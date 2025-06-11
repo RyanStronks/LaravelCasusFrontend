@@ -2,58 +2,29 @@
 
 import { useAuth } from '@/app/components/auth/AuthContext';
 import Loading from '@/app/loading';
+import { baseFetcher } from '@/app/services/baseFetcher';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
-import useSWR from 'swr';
-
-type StatusError = Error & { status?: number };
-
-const fetcher = async (url: string, token: string) => {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-  });
-  if (res.status === 401) {
-    const error: StatusError = new Error('Unauthorized');
-    error.status = 401;
-    throw error;
-  }
-  return res.json();
-};
-
-const deleteUser = async (id: string, token: string) => {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${id}`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-  });
-  if (!res.ok) {
-    throw new Error('Failed to delete user');
-  }
-};
+import toast from 'react-hot-toast';
+import useSWR, { mutate as globalMutate } from 'swr';
 
 const updateUser = async (
   id: string,
   token: string,
   data: { name: string; email: string }
 ) => {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${id}`, {
+  return baseFetcher(`${process.env.NEXT_PUBLIC_API_URL}/users/${id}`, {
     method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
+    token,
+    body: data,
   });
-  if (!res.ok) {
-    throw new Error('Failed to update user');
-  }
-  return res.json();
+};
+
+const deleteUser = async (id: string, token: string) => {
+  await baseFetcher(`${process.env.NEXT_PUBLIC_API_URL}/users/${id}`, {
+    method: 'DELETE',
+    token,
+  });
 };
 
 export default function UserDetailPage() {
@@ -62,15 +33,11 @@ export default function UserDetailPage() {
   const router = useRouter();
   const id = params?.id as string;
 
-  const {
-    data: user,
-    isLoading,
-    mutate,
-  } = useSWR(
+  const { data: user, isLoading } = useSWR(
     token && id
       ? [`${process.env.NEXT_PUBLIC_API_URL}/users/${id}`, token]
       : null,
-    ([url, token]) => fetcher(url, token),
+    ([url, token]) => baseFetcher(url, { token }),
     {
       dedupingInterval: 24 * 60 * 60 * 1000,
     }
@@ -94,16 +61,13 @@ export default function UserDetailPage() {
     try {
       await deleteUser(id, token);
       router.push('/usermanagement');
-    } catch (err) {
-      if (
-        typeof err === 'object' &&
-        err !== null &&
-        'message' in err &&
-        typeof (err as { message?: string }).message === 'string'
-      ) {
-        setError((err as { message: string }).message);
+      globalMutate([`${process.env.NEXT_PUBLIC_API_URL}/users`, token]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      if (error && error.message) {
+        toast.error(error.message);
       } else {
-        setError('Failed to delete user.');
+        toast.error('Registration failed');
       }
     }
   };
@@ -116,17 +80,14 @@ export default function UserDetailPage() {
     try {
       await updateUser(id, token, { name: editName, email: editEmail });
       setEditMode(false);
-      mutate();
-    } catch (err) {
-      if (
-        typeof err === 'object' &&
-        err !== null &&
-        'message' in err &&
-        typeof (err as { message?: string }).message === 'string'
-      ) {
-        setError((err as { message: string }).message);
+      globalMutate([`${process.env.NEXT_PUBLIC_API_URL}/users/${id}`, token]);
+      globalMutate([`${process.env.NEXT_PUBLIC_API_URL}/users`, token]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      if (error && error.message) {
+        toast.error(error.message);
       } else {
-        setError('Failed to update user.');
+        toast.error('Registration failed');
       }
     } finally {
       setSaving(false);
@@ -141,14 +102,15 @@ export default function UserDetailPage() {
     );
 
   return (
-    <div className='max-w-2xl mx-auto mt-10 p-8 rounded-xl shadow-lg bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0a192f] text-zinc-100'>
-      <h1 className='text-3xl font-bold mb-6 text-blue-300'>User Detail</h1>
+    <div className='max-w-2xl mx-auto p-8 rounded-xl shadow-lg bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0a192f] text-zinc-100'>
       {error && <div className='mb-4 text-red-400'>{error}</div>}
       <div className='p-4 rounded-lg bg-[#1e293b] border border-[#22304a] mb-4'>
         {editMode ? (
           <form onSubmit={handleUpdate} className='space-y-4'>
             <div>
-              <label className='block mb-1 text-blue-200'>Name</label>
+              <label className='block mb-1 text-purple-700 dark:text-purple-400'>
+                Name
+              </label>
               <input
                 className='w-full p-2 rounded bg-[#0f172a] text-zinc-100'
                 value={editName}
@@ -157,7 +119,9 @@ export default function UserDetailPage() {
               />
             </div>
             <div>
-              <label className='block mb-1 text-blue-200'>Email</label>
+              <label className='block mb-1 text-purple-700 dark:text-purple-400'>
+                Email
+              </label>
               <input
                 className='w-full p-2 rounded bg-[#0f172a] text-zinc-100'
                 value={editEmail}
@@ -168,14 +132,14 @@ export default function UserDetailPage() {
             <div className='flex gap-2'>
               <button
                 type='submit'
-                className='px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700'
+                className='px-4 py-2 rounded bg-purple-700 dark:bg-purple-500 text-white hover:bg-purple-800 cursor-pointer'
                 disabled={saving}
               >
                 {saving ? 'Saving...' : 'Save'}
               </button>
               <button
                 type='button'
-                className='px-4 py-2 rounded bg-zinc-500 text-white hover:bg-zinc-600'
+                className='px-4 py-2 rounded bg-zinc-500 text-white hover:bg-zinc-600 cursor-pointer'
                 onClick={() => setEditMode(false)}
                 disabled={saving}
               >
@@ -185,18 +149,20 @@ export default function UserDetailPage() {
           </form>
         ) : (
           <>
-            <div className='font-semibold text-blue-200'>{user.name}</div>
+            <div className='font-semibold text-purple-700 dark:text-purple-400'>
+              {user.name}
+            </div>
             <div className='text-zinc-400'>{user.email}</div>
             <div className='text-zinc-400'>ID: {user.id}</div>
             <div className='flex gap-2 mt-4'>
               <button
-                className='px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700'
+                className='px-4 py-2 rounded bg-purple-700 dark:bg-purple-500 text-white hover:bg-purple-800 cursor-pointer'
                 onClick={() => setEditMode(true)}
               >
                 Edit
               </button>
               <button
-                className='px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700'
+                className='px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 cursor-pointer  '
                 onClick={handleDelete}
               >
                 Delete

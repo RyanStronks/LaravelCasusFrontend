@@ -1,11 +1,12 @@
 'use client';
 
 import { useAuth } from '@/app/components/auth/AuthContext';
+import { baseFetcher } from '@/app/services/baseFetcher';
 import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Link from 'next/link';
 import { useState } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate as globalMutate } from 'swr';
 import Loading from '../../loading';
 
 type User = {
@@ -14,39 +15,11 @@ type User = {
   email: string;
 };
 
-type StatusError = Error & { status?: number };
-
-const fetcher = async (url: string, token: string) => {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-  });
-  if (res.status === 401) {
-    const error: StatusError = new Error('Unauthorized');
-    error.status = 401;
-    throw error;
-  }
-  return res.json();
-};
-
 const deleteUser = async (userId: number, token: string) => {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/users/${userId}`,
-    {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
-    }
-  );
-  if (!res.ok) {
-    const error: StatusError = new Error('Failed to delete user');
-    error.status = res.status;
-    throw error;
-  }
+  await baseFetcher(`${process.env.NEXT_PUBLIC_API_URL}/users/${userId}`, {
+    method: 'DELETE',
+    token,
+  });
 };
 
 export default function UserManagement() {
@@ -54,13 +27,9 @@ export default function UserManagement() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const { token } = useAuth();
 
-  const {
-    data: users = [],
-    isLoading,
-    mutate,
-  } = useSWR(
+  const { data: users = [], isLoading } = useSWR(
     token ? [`${process.env.NEXT_PUBLIC_API_URL}/users`, token] : null,
-    ([url, token]) => fetcher(url, token),
+    ([url, token]) => baseFetcher(url, { token }),
     {
       dedupingInterval: 24 * 60 * 60 * 1000,
     }
@@ -72,7 +41,7 @@ export default function UserManagement() {
         await deleteUser(userToDelete.id, token);
         setShowModal(false);
         setUserToDelete(null);
-        mutate();
+        globalMutate([`${process.env.NEXT_PUBLIC_API_URL}/users`, token]);
       } catch {
         setShowModal(false);
         setUserToDelete(null);
@@ -83,8 +52,12 @@ export default function UserManagement() {
   if (isLoading) return <Loading />;
 
   return (
-    <div className='max-w-2xl mx-auto mt-10 p-8 rounded-xl shadow-lg bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0a192f] text-zinc-100'>
-      <h1 className='text-3xl font-bold mb-6 text-blue-300'>Users</h1>
+    <div className='max-w-2xl mx-auto p-8 rounded-xl shadow-lg bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0a192f] text-zinc-100'>
+      <div className='flex justify-between items-center mb-6'>
+        <h1 className='text-3xl font-bold text-purple-900 dark:text-purple-600'>
+          Users
+        </h1>
+      </div>
       <ul className='space-y-4'>
         {users.map((user: User) => (
           <li
@@ -94,7 +67,7 @@ export default function UserManagement() {
             <div className='flex items-center justify-between'>
               <div>
                 <Link href={`/usermanagement/${user.id}`}>
-                  <span className='font-semibold text-blue-200 cursor-pointer hover:underline'>
+                  <span className='font-semibold text-purple-700 dark:text-purple-400 cursor-pointer hover:underline'>
                     {user.name}
                   </span>
                 </Link>
@@ -118,7 +91,7 @@ export default function UserManagement() {
       {showModal && userToDelete && (
         <div className='fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50'>
           <div className='bg-[#1e293b] p-6 rounded-lg shadow-lg text-center'>
-            <h2 className='text-xl font-bold mb-4 text-blue-200'>
+            <h2 className='text-xl font-bold mb-4 text-purple-700 dark:text-purple-400'>
               Are you sure?
             </h2>
             <p className='mb-6 text-zinc-300'>
@@ -127,13 +100,13 @@ export default function UserManagement() {
             </p>
             <div className='flex justify-center gap-4'>
               <button
-                className='px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700'
+                className='px-4 py-2 rounded bg-purple-700 dark:bg-purple-500 text-white hover:bg-red-600 cursor-pointer'
                 onClick={handleDelete}
               >
                 Yes, Delete
               </button>
               <button
-                className='px-4 py-2 rounded bg-zinc-500 text-white hover:bg-zinc-600'
+                className='px-4 py-2 rounded bg-zinc-500 text-white hover:bg-zinc-600 cursor-pointer'
                 onClick={() => {
                   setShowModal(false);
                   setUserToDelete(null);

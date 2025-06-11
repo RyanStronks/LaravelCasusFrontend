@@ -1,12 +1,13 @@
 'use client';
 
 import { useAuth } from '@/app/components/auth/AuthContext';
+import { baseFetcher } from '@/app/services/baseFetcher';
 import { faTrashCan } from '@fortawesome/free-regular-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
-import useSWR from 'swr';
+import React, { useState } from 'react';
+import useSWR, { mutate as globalMutate } from 'swr';
 import Loading from '../../loading';
 
 type Game = {
@@ -16,79 +17,36 @@ type Game = {
   image_path: string;
 };
 
-type StatusError = Error & { status?: number };
-
-const fetcher = async (url: string, token: string) => {
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-  });
-  if (res.status === 401) {
-    const error: StatusError = new Error('Unauthorized');
-    error.status = 401;
-    throw error;
-  }
-  return res.json();
-};
-
 const createGame = async (
   data: { name: string; description: string; image_path: string },
   token: string
 ) => {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/games`, {
+  return baseFetcher(`${process.env.NEXT_PUBLIC_API_URL}/games`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(data),
+    token,
+    body: data,
   });
-  if (!res.ok) {
-    const error: StatusError = new Error('Failed to create Game');
-    error.status = res.status;
-    throw error;
-  }
-  return res.json();
 };
 
 const deleteGame = async (gameId: number, token: string) => {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/games/${gameId}`,
-    {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-      },
-    }
-  );
-  if (!res.ok) {
-    const error: StatusError = new Error('Failed to delete Game');
-    error.status = res.status;
-    throw error;
-  }
+  await baseFetcher(`${process.env.NEXT_PUBLIC_API_URL}/games/${gameId}`, {
+    method: 'DELETE',
+    token,
+  });
 };
 
 const uploadImage = async (file: File, token: string): Promise<string> => {
   const formData = new FormData();
   formData.append('image', file);
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload-image`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-    },
-    body: formData,
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to upload image');
-  }
-  const data = await res.json();
+  const data = await baseFetcher(
+    `${process.env.NEXT_PUBLIC_API_URL}/upload-image`,
+    {
+      method: 'POST',
+      token,
+      body: formData,
+    }
+  );
   return data.path;
 };
 
@@ -101,15 +59,14 @@ export default function GameManagement() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [gameToDelete, setGameToDelete] = useState<Game | null>(null);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+
   const { token } = useAuth();
 
-  const {
-    data: games = [],
-    isLoading,
-    mutate,
-  } = useSWR(
+  const { data: games = [], isLoading } = useSWR(
     token ? [`${process.env.NEXT_PUBLIC_API_URL}/games`, token] : null,
-    ([url, token]) => fetcher(url, token),
+    ([url, token]) => baseFetcher(url, { token }),
     {
       dedupingInterval: 24 * 60 * 60 * 1000,
     }
@@ -137,7 +94,7 @@ export default function GameManagement() {
       setNewName('');
       setNewDescription('');
       setNewImageFile(null);
-      mutate();
+      globalMutate([`${process.env.NEXT_PUBLIC_API_URL}/games`, token]);
     } catch {
       setCreateError('Failed to create game.');
     } finally {
@@ -151,7 +108,7 @@ export default function GameManagement() {
         await deleteGame(gameToDelete.id, token);
         setShowModal(false);
         setGameToDelete(null);
-        mutate();
+        globalMutate([`${process.env.NEXT_PUBLIC_API_URL}/games`, token]);
       } catch {
         setShowModal(false);
         setGameToDelete(null);
@@ -162,11 +119,13 @@ export default function GameManagement() {
   if (isLoading) return <Loading />;
 
   return (
-    <div className='max-w-2xl mx-auto mt-10 p-8 rounded-xl shadow-lg bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0a192f] text-zinc-100'>
+    <div className='max-w-2xl mx-auto p-8 rounded-xl shadow-lg bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0a192f] text-zinc-100'>
       <div className='flex justify-between items-center mb-6'>
-        <h1 className='text-3xl font-bold text-blue-300'>Games</h1>
+        <h1 className='text-3xl font-bold text-purple-900 dark:text-purple-600'>
+          Games
+        </h1>
         <button
-          className='px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+          className='px-4 py-2 rounded bg-purple-700 dark:bg-purple-500 text-white hover:bg-purple-800 cursor-pointer'
           onClick={() => setShowCreateModal(true)}
         >
           + Create Game
@@ -181,7 +140,7 @@ export default function GameManagement() {
             <div className='flex items-center justify-between'>
               <div>
                 <Link href={`/gamemanagement/${game.id}`}>
-                  <span className='font-semibold text-blue-200 cursor-pointer hover:underline'>
+                  <span className='font-semibold text-purple-700 dark:text-purple-400 cursor-pointer hover:underline'>
                     {game.name}
                   </span>
                 </Link>
@@ -193,8 +152,12 @@ export default function GameManagement() {
                       alt={game.name}
                       width={64}
                       height={64}
-                      className='h-16 w-auto rounded object-cover'
+                      className='h-16 w-auto rounded object-cover cursor-pointer'
                       unoptimized
+                      onClick={() => {
+                        setSelectedGame(game);
+                        setShowImageModal(true);
+                      }}
                     />
                   </div>
                 )}
@@ -217,7 +180,7 @@ export default function GameManagement() {
       {showCreateModal && (
         <div className='fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50'>
           <div className='bg-[#1e293b] p-6 rounded-lg shadow-lg text-center w-full max-w-md'>
-            <h2 className='text-xl font-bold mb-4 text-blue-200'>
+            <h2 className='text-xl font-bold text-purple-900 dark:text-purple-600 mb-2'>
               Create Game
             </h2>
             {createError && (
@@ -225,14 +188,14 @@ export default function GameManagement() {
             )}
             <form onSubmit={handleCreate} className='space-y-4'>
               <input
-                className='w-full p-2 rounded bg-[#0f172a] text-zinc-100'
+                className='w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition'
                 placeholder='Name'
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 required
               />
               <input
-                className='w-full p-2 rounded bg-[#0f172a] text-zinc-100'
+                className='w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition'
                 placeholder='Description'
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
@@ -241,20 +204,20 @@ export default function GameManagement() {
               <input
                 type='file'
                 accept='image/*'
-                className='w-full p-2 rounded bg-[#0f172a] text-zinc-100'
+                className='w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500 transition'
                 onChange={(e) => setNewImageFile(e.target.files?.[0] || null)}
               />
               <div className='flex justify-center gap-4 mt-4'>
                 <button
                   type='submit'
-                  className='px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700'
+                  className='px-4 py-2 rounded bg-purple-700 dark:bg-purple-500 text-white hover:bg-purple-800 cursor-pointer'
                   disabled={creating}
                 >
                   {creating ? 'Creating...' : 'Create'}
                 </button>
                 <button
                   type='button'
-                  className='px-4 py-2 rounded bg-zinc-500 text-white hover:bg-zinc-600'
+                  className='px-4 py-2 rounded bg-zinc-500 text-white hover:bg-zinc-600 cursor-pointer'
                   onClick={() => setShowCreateModal(false)}
                   disabled={creating}
                 >
@@ -292,6 +255,29 @@ export default function GameManagement() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {showImageModal && selectedGame && selectedGame.image_path && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm'
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className='relative p-4 flex flex-col items-center h-2/3 w-2/3'>
+            <Image
+              src={`${process.env.NEXT_PUBLIC_API_URL}/storage/${selectedGame.image_path}`}
+              alt={selectedGame.name}
+              width={600}
+              height={600}
+              className='h-full w-auto max-w-full max-h-full rounded mb-4 object-contain'
+              unoptimized
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className='text-xs text-zinc-400 text-center'>
+              Click outside to close
             </div>
           </div>
         </div>
